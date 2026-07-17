@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mietzins-Check · Kategorie, Mietzinsbildung & Erhöhung (MRG)</title>
+  <meta name="description" content="Ausstattungskategorie nach §15a MRG, zulässiger Hauptmietzins und Mietzinserhöhung – interaktiver Check. Stand 1.4.2026." />
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>html,body{margin:0;padding:0;background:#F6F6F3}</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+
+// ─── DATEN (Stand 1. April 2026 · Statistik Austria) ────────────────────────
+const RICHTWERTE = {
+  Burgenland: 6.15, "Kärnten": 7.89, "Niederösterreich": 6.92,
+  "Oberösterreich": 7.3, Salzburg: 9.31, Steiermark: 9.3,
+  Tirol: 8.22, Vorarlberg: 10.35, Wien: 6.74,
+};
+const GKA = {
+  Burgenland: 58.86, "Kärnten": 143.44, "Niederösterreich": 166.91,
+  "Oberösterreich": 164.25, Salzburg: 320.64, Steiermark: 222.92,
+  Tirol: 223.91, Vorarlberg: 352.42, Wien: 347.99,
+};
+const KATBETRAG = { Dbrauchbar: 2.25, Dunbrauchbar: 1.13 };
+
+const FOOTNOTES = [
+  ["Mietrechtsgesetz (MRG) im RIS – §§ 1, 15a, 16, 18, 45", "https://www.ris.bka.gv.at/GeltendeFassung.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10002531"],
+  ["Statistik Austria – Richtwerte und Kategoriebeträge (ab 1.4.2026)", "https://www.statistik.at/statistiken/bevoelkerung-und-soziales/wohnen/richtwerte-und-kategoriebetraege"],
+  ["Immo-Pauker – Richtwerte, Kategoriebeträge, GKA und §45-Beträge ab April 2026", "https://immo-pauker.at/mietrecht-neue-richtwerte-und-kategoriebetraege-ab-april-2026/"],
+  ["HSP Rechtsanwälte – Valorisierung ab April 2026 (Mietpreisbremse)", "https://hsp.law/aktuelles/mietrecht-update-valorisierung-ab-april-2026"],
+  ["Mietervereinigung Österreichs – Richtwert und Richtwertmiete", "https://www.mietervereinigung.at/news/richtwert-und-richtwertmiete"],
+  ["Arbeiterkammer – Richtwertmiete: Normwohnung, Zu- und Abschläge", "https://vbg.arbeiterkammer.at/akblog/konsum/richtwertmiete-erdachte-wohnung-wird-norm.html"],
+  ["kurzzeitmiete.at – Richtwertmietzins: Anwendungsbereich und Rückforderung", "https://www.kurzzeitmiete.at/de/Vermieter/Richtwertmietzins"],
+];
+const Fn = ({ n }) => (
+  <a href={"#fn-" + n} style={{ color: "#95959C", textDecoration: "none", fontSize: "0.72em", verticalAlign: "super", fontWeight: 600, marginLeft: 1 }}>[{n}]</a>
+);
+
+// ─── KATEGORIE §15a MRG ──────────────────────────────────────────────────────
+const CRITERIA = [
+  { id: "brauchbar", label: "Brauchbarer Zustand", hint: "Zum sofortigen Bewohnen geeignet" },
+  { id: "flaeche30", label: "Nutzfläche mind. 30 m²", hint: "Nur Kategorie A" },
+  { id: "zimmer", label: "Mind. 1 Zimmer (Wohnraum)", hint: "Wohn-/Schlafraum; Küche, Vorraum, Bad, WC zählen nicht als Zimmer" },
+  { id: "kueche", label: "Küche oder Kochnische", hint: "" },
+  { id: "vorraum", label: "Vorraum", hint: "" },
+  { id: "wc", label: "Klosett (WC) im Inneren", hint: "Voraussetzung für Kat. A–C, sonst Kat. D" },
+  { id: "bad", label: "Zeitgemäße Badegelegenheit", hint: "Kat. A und B" },
+  { id: "wasser", label: "Wasserentnahmestelle im Inneren", hint: "Voraussetzung für Kat. A–C, sonst Kat. D" },
+  { id: "heizung", label: "Zentral-/Etagenheizung o. glw.", hint: "Nur Kat. A" },
+  { id: "warmwasser", label: "Warmwasseraufbereitung", hint: "Nur Kat. A" },
+];
+function computeCategory(s) {
+  // Ohne WC oder ohne Wasserentnahmestelle im Inneren → zwingend Kategorie D (§15a Abs 1 Z 4)
+  if (!s.wasser || !s.wc) return "D";
+  if (s.brauchbar && s.flaeche30 && s.zimmer && s.kueche && s.vorraum && s.bad && s.heizung && s.warmwasser) return "A";
+  if (s.brauchbar && s.zimmer && s.kueche && s.vorraum && s.bad) return "B";
+  if (s.brauchbar) return "C";
+  return "D";
+}
+const CAT_META = {
+  A: { color: "#57B294", desc: "Alle Merkmale der Normwohnung erfüllt (§15a Abs 1 Z 1 MRG)." },
+  B: { color: "#7E95D6", desc: "Zimmer, Küche, Vorraum, WC, Bad – ohne Heizung/Warmwasser oder < 30 m² (§15a Abs 1 Z 2 MRG)." },
+  C: { color: "#D6A85F", desc: "Brauchbar, WC und Wasser im Inneren (§15a Abs 1 Z 3 MRG)." },
+  D: { color: "#DA8080", desc: "Kein WC oder kein Wasser im Inneren bzw. unbrauchbar (§15a Abs 1 Z 4 MRG)." },
+};
+
+// ─── UI-Bausteine ────────────────────────────────────────────────────────────
+const card = { background: "#fff", borderRadius: 16, border: "1px solid #E8E8E4", marginBottom: 10 };
+const label12 = { fontSize: 12, fontWeight: 600, display: "block", marginBottom: 5 };
+const numInput = {
+  width: "100%", fontSize: 15, fontWeight: 600, padding: "10px 12px", borderRadius: 11,
+  border: "1px solid #DDDDD8", background: "#F6F6F3", outline: "none", fontFamily: "inherit",
+};
+const darkInput = {
+  width: "100%", fontSize: 15, fontWeight: 700, padding: "10px 12px", borderRadius: 11,
+  border: "1px solid #5E5E66", background: "#46464E", color: "#fff", outline: "none", fontFamily: "inherit",
+};
+function Switch({ on }) {
+  return (
+    <span aria-hidden style={{ flexShrink: 0, width: 38, height: 23, borderRadius: 999, padding: 3, background: on ? "#3A3A41" : "#DDDDD8", transition: "background .2s", display: "block" }}>
+      <span style={{ display: "block", width: 17, height: 17, borderRadius: "50%", background: "#fff", transform: on ? "translateX(15px)" : "none", transition: "transform .2s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+    </span>
+  );
+}
+function ToggleRow({ label, hint, on, onClick, border }) {
+  return (
+    <button className="row" onClick={onClick} style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+      padding: "8px 14px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left",
+      borderTop: border ? "1px solid #EFEFEB" : "none", transition: "background .15s",
+    }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
+        {hint && <div style={{ fontSize: 11, color: "#95959C", marginTop: 1 }}>{hint}</div>}
+      </div>
+      <span style={{ marginLeft: 14 }}><Switch on={on} /></span>
+    </button>
+  );
+}
+function Pills({ options, value, onChange }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+      {options.map(o => (
+        <button key={o} onClick={() => onChange(o)} style={{
+          border: "1px solid " + (value === o ? "#3A3A41" : "#DDDDD8"), background: value === o ? "#3A3A41" : "#fff",
+          color: value === o ? "#fff" : "#54545A", borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", transition: "all .15s",
+        }}>{o}</button>
+      ))}
+    </div>
+  );
+}
+function SectionLabel({ children, border }) {
+  return <div style={{ padding: "8px 14px 2px", borderTop: border ? "1px solid #EFEFEB" : "none", fontSize: 10.5, fontWeight: 700, color: "#95959C", letterSpacing: "0.06em", textTransform: "uppercase" }}>{children}</div>;
+}
+function Step({ nr, par, title, result, resultColor, children, className }) {
+  return (
+    <div className={className} style={{ ...card, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid #EFEFEB", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: "#95959C", letterSpacing: "0.07em", textTransform: "uppercase" }}>{nr} · {par}</span>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
+        </div>
+        {result && <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: "#fff", background: resultColor || "#3A3A41", borderRadius: 999, padding: "4px 11px", whiteSpace: "nowrap" }}>{result}</span>}
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+const fmt = n => n.toLocaleString("de-AT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ─── APP ─────────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState("check");
+
+  const [crit, setCrit] = useState(Object.fromEntries(CRITERIA.map(c => [c.id, true])));
+  const cat = useMemo(() => computeCategory(crit), [crit]);
+  const dBrauchbar = crit.brauchbar;
+  const meta = CAT_META[cat];
+
+  const [maxZwei, setMaxZwei] = useState(false);
+  const [sonstAusnahme, setSonstAusnahme] = useState(false);
+  const [bewilligung, setBewilligung] = useState("Vor dem 1.7.1953");
+  const [dgAusbau, setDgAusbau] = useState(false);
+  const [we45, setWe45] = useState(false);
+  const [denkmal, setDenkmal] = useState(false);
+  const [wiederaufbau, setWiederaufbau] = useState(false);
+
+  const [land, setLand] = useState("Wien");
+  const [flaeche, setFlaeche] = useState(65);
+  const [befristet, setBefristet] = useState(false);
+  const [gutelage, setGutelage] = useState(false);
+  const [grundkosten, setGrundkosten] = useState(700);
+  const [marktmiete, setMarktmiete] = useState(14);
+
+  const rw = RICHTWERTE[land];
+
+  const anwendung = useMemo(() => {
+    if (maxZwei || sonstAusnahme) return { stufe: "Vollausnahme", color: "#DA8080", norm: "§1 Abs 2 MRG" };
+    if (bewilligung === "Nach 30.6.1953 · frei finanziert" || dgAusbau || we45) return { stufe: "Teilanwendung", color: "#D6A85F", norm: "§1 Abs 4 MRG" };
+    return { stufe: "Vollanwendung", color: "#57B294", norm: "§1 Abs 1 MRG" };
+  }, [maxZwei, sonstAusnahme, bewilligung, dgAusbau, we45]);
+
+  const system = useMemo(() => {
+    if (anwendung.stufe !== "Vollanwendung") return { name: "Freier Mietzins", norm: anwendung.norm, frei: true };
+    if (wiederaufbau) return { name: "Angemessener Mietzins", norm: "§16 Abs 1 Z 1–2 MRG", angemessen: true };
+    if (denkmal) return { name: "Angemessener Mietzins", norm: "§16 Abs 1 Z 3 MRG", angemessen: true };
+    if ((cat === "A" || cat === "B") && flaeche > 130) return { name: "Angemessener Mietzins", norm: "§16 Abs 1 Z 4 MRG", angemessen: true };
+    if (cat === "D") return { name: "Kategoriemietzins D", norm: "§16 Abs 5 MRG", katD: true };
+    return { name: "Richtwertmietzins", norm: "§16 Abs 2 MRG iVm RichtWG", richtwert: true };
+  }, [anwendung, wiederaufbau, denkmal, cat, flaeche]);
+
+  const calc = useMemo(() => {
+    const rows = [];
+    let qm;
+    if (system.frei || system.angemessen) {
+      qm = marktmiete;
+      rows.push([system.frei ? "Marktübliche Miete (Eingabe)" : "Ortsübliche Miete (Eingabe)", `€ ${fmt(marktmiete)}/m²`]);
+      if (system.angemessen && befristet) { qm *= 0.75; rows.push(["− Befristungsabschlag 25 % (§16 Abs 7)", `€ ${fmt(qm)}/m²`]); }
+    } else if (system.katD) {
+      qm = dBrauchbar ? KATBETRAG.Dbrauchbar : KATBETRAG.Dunbrauchbar;
+      rows.push([`Kategoriebetrag D ${dBrauchbar ? "brauchbar" : "unbrauchbar"}`, `€ ${fmt(qm)}/m²`]);
+      if (befristet) { qm *= 0.75; rows.push(["− Befristungsabschlag 25 % (§16 Abs 7)", `€ ${fmt(qm)}/m²`]); }
+    } else {
+      qm = rw;
+      rows.push([`Richtwert ${land} (ab 1.4.2026)`, `€ ${fmt(rw)}/m²`]);
+      const abschlag = cat === "B" ? 0.25 : cat === "C" ? 0.5 : 0;
+      if (abschlag) { qm *= 1 - abschlag; rows.push([`− Abschlag Kat. ${cat} (${abschlag * 100} %, Richtgröße)`, `€ ${fmt(qm)}/m²`]); }
+      if (gutelage) {
+        const lz = Math.max(0, (grundkosten - GKA[land]) * 0.00333);
+        qm += lz;
+        rows.push([`+ Lagezuschlag (GK − GKA € ${fmt(GKA[land])}) × 0,33 %`, `€ ${fmt(qm)}/m²`]);
+      }
+      if (befristet) { qm *= 0.75; rows.push(["− Befristungsabschlag 25 % (§16 Abs 7)", `€ ${fmt(qm)}/m²`]); }
+    }
+    return { qm, rows };
+  }, [system, marktmiete, befristet, dBrauchbar, rw, land, cat, gutelage, grundkosten]);
+
+  const monat = calc.qm * flaeche;
+  const heute = new Date().toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const half = Math.ceil(CRITERIA.length / 2);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#F6F6F3", fontFamily: "'Inter', -apple-system, 'Segoe UI', sans-serif", color: "#3A3A41", WebkitFontSmoothing: "antialiased" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; } button, select, input { font-family: inherit; }
+        .row:hover { background: #F1F1ED; }
+        input:focus, select:focus { border-color: #A6A6AD !important; }
+
+        .shell { max-width: 1240px; margin: 0 auto; padding: 12px 20px 20px; display: grid; grid-template-columns: 1fr; gap: 0; }
+        .side, .desktop-only { display: none; }
+        .mobile-only { display: block; }
+        .grid2, .critgrid, .erhgrid { display: block; }
+
+        /* ── Desktop ≥ 1024px ── */
+        @media (min-width: 1024px) {
+          .shell { grid-template-columns: minmax(0,1fr) 350px; gap: 22px; }
+          .side { display: block; }
+          .desktop-only { display: block; }
+          .mobile-only { display: none !important; }
+          .sticky { position: sticky; top: 62px; }
+          .critgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+          .critcol2 { border-left: 1px solid #EFEFEB; }
+          .critcol2 .row:first-child { border-top: none !important; }
+          .erhgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+          .erhgrid > div { margin-bottom: 0; }
+        }
+        /* ── Breiter Desktop ≥ 1300px: Schritte nebeneinander, kein Scrollen ── */
+        @media (min-width: 1300px) {
+          .shell { max-width: 1380px; }
+          .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+          .grid2 > .s1 { grid-row: span 2; }
+          .grid2 > div { margin-bottom: 0; }
+        }
+
+        /* ── Mobil < 1024px ── */
+        @media (max-width: 1023px) {
+          .critcol2 { border-top: 1px solid #EFEFEB; }
+          body { -webkit-text-size-adjust: 100%; }
+          .shell { padding: 14px 14px 96px; } /* Platz für Bottom-Bar */
+          .bottombar { display: flex !important; }
+          .htabs { display: flex; }
+        }
+        .bottombar { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+          background: rgba(58,58,65,0.96); backdrop-filter: blur(12px); color: #fff;
+          padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); align-items: center; justify-content: space-between; gap: 12px; }
+
+        #print-sheet { display: none; }
+        @media print {
+          body { background: #fff; }
+          .app-ui { display: none !important; }
+          #print-sheet { display: block !important; }
+          @page { size: A4 portrait; margin: 16mm 18mm; }
+        }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+      `}</style>
+
+      {/* ═══ BILDSCHIRM ═══ */}
+      <div className="app-ui">
+        <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(246,246,243,0.94)", backdropFilter: "blur(12px)", borderBottom: "1px solid #E8E8E4" }}>
+          <div style={{ maxWidth: 1380, margin: "0 auto", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+              <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.02em" }}>Mietzins-Check</div>
+                          </div>
+            <div style={{ display: "flex", gap: 7 }}>
+              {[["check", "Mietzins-Check"], ["erhoehung", "Erhöhung"]].map(([id, l]) => (
+                <button key={id} onClick={() => setTab(id)} style={{
+                  border: "none", cursor: "pointer", borderRadius: 999, padding: "7px 15px", fontSize: 13, fontWeight: 600,
+                  background: tab === id ? "#3A3A41" : "#EBEBE7", color: tab === id ? "#fff" : "#54545A", transition: "all .2s",
+                }}>{l}</button>
+              ))}
+            </div>
+          </div>
+        </header>
+
+        <div className="shell">
+          {/* ── Hauptspalte ── */}
+          <div>
+            {/* Mobil: Objekt-Eingaben kompakt */}
+            <div className="mobile-only" style={{ ...card, padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={label12}>Nutzfläche (m²)</label>
+                <input type="number" inputMode="decimal" min="10" max="500" value={flaeche} style={numInput} onChange={e => setFlaeche(Math.max(0, +e.target.value || 0))} />
+              </div>
+              <div>
+                <label style={label12}>Bundesland</label>
+                <select value={land} onChange={e => setLand(e.target.value)} style={{ ...numInput, appearance: "none" }}>
+                  {Object.keys(RICHTWERTE).map(l => <option key={l}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {tab === "check" && (<>
+              {/* Schritt 1: Kategorie (§15a) – zuerst die Einordnung */}
+              <Step nr={1} par="§15a MRG" title="Ausstattungskategorie" result={`Kategorie ${cat}${cat === "D" ? (dBrauchbar ? " (brauchbar)" : " (unbr.)") : ""}`} resultColor={meta.color}>
+                <div className="critgrid" style={{ gap: 0 }}>
+                  <div>
+                    {CRITERIA.slice(0, half).map((c, i) => (
+                      <ToggleRow key={c.id} label={c.label} hint={c.hint} on={crit[c.id]} border={i > 0} onClick={() => setCrit(p => ({ ...p, [c.id]: !p[c.id] }))} />
+                    ))}
+                  </div>
+                  <div className="critcol2">
+                    {CRITERIA.slice(half).map((c, i) => (
+                      <ToggleRow key={c.id} label={c.label} hint={c.hint} on={crit[c.id]} border={i > 0} onClick={() => setCrit(p => ({ ...p, [c.id]: !p[c.id] }))} />
+                    ))}
+                  </div>
+                </div>
+                <p style={{ fontSize: 11.5, color: "#95959C", margin: 0, padding: "8px 14px", borderTop: "1px solid #EFEFEB" }}>{meta.desc}<Fn n={1} /><Fn n={5} /> Maßgeblich: Zustand bei Übergabe (§15a Abs 2 MRG).</p>
+              </Step>
+
+              {/* Schritte 2–4: Mietzins */}
+              <div className="grid2">
+                <Step className="s1" nr={2} par="§1 MRG" title="Anwendungsbereich" result={anwendung.stufe} resultColor={anwendung.color}>
+                  <SectionLabel>A · Vollausnahmen (§1 Abs 2)</SectionLabel>
+                  <ToggleRow label="Max. 2 Wohnungen im Gebäude" on={maxZwei} onClick={() => setMaxZwei(v => !v)} />
+                  <ToggleRow border label="Ferien-/Dienstwohnung oder ≤ 6 Monate" on={sonstAusnahme} onClick={() => setSonstAusnahme(v => !v)} />
+                  <SectionLabel border>B · Baubewilligung des Gebäudes</SectionLabel>
+                  <div style={{ padding: "6px 16px 12px" }}>
+                    <Pills options={["Vor dem 1.7.1953", "Nach 30.6.1953 · gefördert", "Nach 30.6.1953 · frei finanziert"]} value={bewilligung} onChange={setBewilligung} />
+                    <p style={{ fontSize: 11.5, color: "#95959C", margin: "7px 0 0" }}>Maßgeblich: Erteilung der Baubewilligung, nicht Fertigstellung.<Fn n={1} /></p>
+                  </div>
+                  <SectionLabel border>C · Teilanwendung (§1 Abs 4)</SectionLabel>
+                  <ToggleRow label="DG-Ausbau (nach 2001) / Zubau (nach 2006)" on={dgAusbau} onClick={() => setDgAusbau(v => !v)} />
+                  <ToggleRow border label="Wohnungseigentum – Baubewilligung nach 8.5.1945" on={we45} onClick={() => setWe45(v => !v)} />
+                </Step>
+
+                <Step nr={3} par="§16 MRG" title="Mietzinssystem" result={system.name} resultColor="#3A3A41">
+                  {anwendung.stufe === "Vollanwendung" ? (<>
+                    <ToggleRow label="Wiederaufbau / Neubau nach 8.5.1945" hint="z. B. Wiederaufbaufonds-Häuser (Z 1–2)" on={wiederaufbau} onClick={() => setWiederaufbau(v => !v)} />
+                    <ToggleRow border label="Denkmalschutz + erhebliche Eigenmittel" hint="Z 3" on={denkmal} onClick={() => setDenkmal(v => !v)} />
+                  </>) : (
+                    <p style={{ fontSize: 12.5, color: "#95959C", margin: 0, padding: "12px 16px" }}>Außerhalb der Vollanwendung gilt keine Mietzinsobergrenze – der Mietzins ist frei vereinbar.</p>
+                  )}
+                </Step>
+
+                <Step nr={4} par={system.richtwert ? "§16 Abs 2–4, 7 MRG" : "§16 Abs 7 MRG"} title="Berechnung">
+                  {system.richtwert && (<>
+                    <ToggleRow label="Überdurchschnittliche Lage" hint={`Lagezuschlag: (GK − GKA € ${fmt(GKA[land])}) × 0,33 %`} on={gutelage} onClick={() => setGutelage(v => !v)} />
+                    {gutelage && (
+                      <div style={{ padding: "0 16px 12px" }}>
+                        <label style={label12}>Tatsächliche Grundkosten (€/m²)</label>
+                        <input type="number" inputMode="decimal" min="0" step="50" value={grundkosten} style={numInput} onChange={e => setGrundkosten(Math.max(0, +e.target.value || 0))} />
+                      </div>
+                    )}
+                  </>)}
+                  {(system.frei || system.angemessen) && (
+                    <div style={{ padding: "12px 16px" }}>
+                      <label style={label12}>{system.frei ? "Marktübliche" : "Ortsübliche"} Miete (€/m²)</label>
+                      <input type="number" inputMode="decimal" min="0" step="0.5" value={marktmiete} style={numInput} onChange={e => setMarktmiete(Math.max(0, +e.target.value || 0))} />
+                    </div>
+                  )}
+                  {!system.frei && (
+                    <ToggleRow border={system.richtwert || system.angemessen} label="Befristeter Mietvertrag" hint="− 25 % · §16 Abs 7" on={befristet} onClick={() => setBefristet(v => !v)} />
+                  )}
+                </Step>
+              </div>
+            </>)}
+
+            {tab === "erhoehung" && (
+              <div className="erhgrid">
+                {[
+                  ["1 · Wertsicherung", <>Schriftliche Wertsicherungsklausel erforderlich. Erhöhung schriftlich, mind. 14 Tage vor dem Zinstermin – nicht rückwirkend (§16 Abs 9 MRG).<Fn n={1} /><Fn n={3} /></>],
+                  ["2 · Mietpreisbremse 2026–2028", <>Richtwert-/Kategorie-/WGG-Mieten: max. 1 % (2026), 2 % (2027). Ab 2028 Inflationsanteil über 3 % nur zur Hälfte – auch bei angemessenen und freien Mieten.<Fn n={4} /></>],
+                  ["3 · §18 MRG – Erhaltungsarbeiten", <>Reichen die Hauptmietzinsreserven (10 Jahre) nicht, kann eine befristete Anhebung für alle Mieter bei Schlichtungsstelle/Gericht durchgesetzt werden.<Fn n={1} /></>],
+                  ["4 · §45 MRG – Mindestmietzins", <>Altverträge (vor 1.3.1994): Anhebung auf € 2,99 (A), € 2,25 (B), € 1,50 (C/D brauchbar), € 1,13 (D unbrauchbar) je m² (ab 1.4.2026). Schriftliches Begehren.<Fn n={1} /><Fn n={3} /></>],
+                  ["5 · Kategorieanhebung", <>Nach Standardverbesserung gilt die höhere Kategorie nur für neue Verträge; laufende behalten die Übergabe-Kategorie.<Fn n={1} /><Fn n={5} /></>],
+                  ["6 · Frei vereinbarte Mieten", <>Erhöhung nur mit vertraglicher Grundlage; einseitige Erhöhungen unwirksam. 3 %-Deckelung ab 2028 gilt auch hier.<Fn n={4} /></>],
+                  ["7 · Grenzen & Rechtsschutz", <>Überhöhte Beträge teilnichtig; Überprüfung bei Schlichtungsstelle/Gericht, Rückforderung bis 10 Jahre (befristet: 6 Monate nach Vertragsende).<Fn n={6} /><Fn n={7} /></>],
+                ].map(([t, b], i) => (
+                  <div key={i} style={{ ...card, padding: "14px 18px" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t}</div>
+                    <p style={{ margin: 0, fontSize: 12.5, color: "#54545A", lineHeight: 1.55 }}>{b}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <details style={{ marginTop: 22 }}>
+              <summary style={{ fontSize: 12, fontWeight: 700, color: "#95959C", textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer" }}>Quellen & Hinweise</summary>
+              <ol style={{ margin: "10px 0 0", padding: "0 0 0 18px" }}>
+                {FOOTNOTES.map(([label, url], i) => (
+                  <li key={i} id={"fn-" + (i + 1)} style={{ fontSize: 12, color: "#95959C", lineHeight: 1.5, marginBottom: 4 }}>
+                    <a href={url} target="_blank" rel="noreferrer" style={{ color: "#54545A", textDecoration: "none", borderBottom: "1px solid #D4D4D0" }}>{label}</a>
+                  </li>
+                ))}
+              </ol>
+              <p style={{ fontSize: 11.5, color: "#ABABB0", marginTop: 10 }}>Indikation des Hauptmietzinses ohne Betriebskosten/USt; Abschläge Kat. B/C sind Richtgrößen der Rechtsprechung, weitere Zu-/Abschläge einzelfallbezogen. Alle Beträge: Stand 1. April 2026. Orientierungshilfe, keine Rechtsberatung.</p>
+            </details>
+          </div>
+
+          {/* ── Sticky-Sidebar (Desktop): Ergebnis + Eingaben ── */}
+          <aside className="side">
+            <div className="sticky">
+              <div style={{ background: "#3A3A41", color: "#fff", borderRadius: 16, padding: 18 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#B8B8BE", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  {system.frei ? "Frei vereinbar · Indikation" : "Zulässiger Hauptmietzins"}
+                </div>
+                <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-0.03em", margin: "2px 0 0" }}>€ {fmt(monat)}</div>
+                <div style={{ fontSize: 12.5, color: "#B8B8BE", marginBottom: 14 }}>pro Monat · € {fmt(calc.qm)}/m²</div>
+
+                {/* Eingaben direkt in der Zusammenfassung */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 6 }}>
+                  <div>
+                    <label style={{ ...label12, color: "#B8B8BE" }}>Nutzfläche (m²)</label>
+                    <input className="darknum" type="number" inputMode="decimal" min="10" max="500" value={flaeche} style={darkInput} onChange={e => setFlaeche(Math.max(0, +e.target.value || 0))} />
+                  </div>
+                  <div>
+                    <label style={{ ...label12, color: "#B8B8BE" }}>Bundesland</label>
+                    <select value={land} onChange={e => setLand(e.target.value)} style={{ ...darkInput, appearance: "none" }}>
+                      {Object.keys(RICHTWERTE).map(l => <option key={l} style={{ color: "#000" }}>{l}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "#A6A6AD", marginBottom: 10 }}>Richtwert {land}: € {fmt(rw)}/m² · GKA € {fmt(GKA[land])}</div>
+
+                {[
+                  ["Kategorie", `${cat}${cat === "D" ? (dBrauchbar ? " (brauchbar)" : " (unbr.)") : ""}`],
+                  ["Anwendungsbereich", anwendung.stufe],
+                  ["System", system.name],
+                  ["Befristet", befristet ? "Ja (− 25 %)" : "Nein"],
+                ].map(([k, v], i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderTop: "1px solid #54545C", fontSize: 12.5 }}>
+                    <span style={{ color: "#B8B8BE" }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span>
+                  </div>
+                ))}
+
+                <button onClick={() => window.print()} style={{
+                  marginTop: 14, width: "100%", border: "none", cursor: "pointer", borderRadius: 11,
+                  padding: "12px 0", fontSize: 13.5, fontWeight: 700, background: "#fff", color: "#3A3A41",
+                }}>Als PDF exportieren</button>
+                              </div>
+            </div>
+          </aside>
+        </div>
+
+        {/* ── Mobil: fixe Ergebnisleiste unten ── */}
+        <div className="bottombar">
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: "50%", background: meta.color, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 14, color: "#3A3A41" }}>{cat}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.1 }}>€ {fmt(monat)}<span style={{ fontSize: 11, fontWeight: 600, color: "#B8B8BE" }}> /M.</span></div>
+              <div style={{ fontSize: 10.5, color: "#B8B8BE", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{system.name} · € {fmt(calc.qm)}/m²</div>
+            </div>
+          </div>
+          <button onClick={() => window.print()} style={{ flexShrink: 0, border: "none", cursor: "pointer", borderRadius: 999, padding: "10px 16px", fontSize: 12.5, fontWeight: 700, background: "#fff", color: "#3A3A41" }}>PDF</button>
+        </div>
+      </div>
+
+      {/* ═══ PDF / DRUCK: 1 × A4 ═══ */}
+      <div id="print-sheet" style={{ fontFamily: "'Inter', -apple-system, 'Segoe UI', sans-serif", color: "#111", fontSize: "10.5pt", lineHeight: 1.45 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: "2px solid #111", paddingBottom: "8pt" }}>
+          <div style={{ fontSize: "16pt", fontWeight: 800, letterSpacing: "-0.02em" }}>Mietzins-Check</div>
+          <div style={{ fontSize: "9pt", color: "#666" }}>Einschätzung vom {heute} · Werte Stand 1.4.2026</div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", margin: "16pt 0 4pt" }}>
+          <div>
+            <div style={{ fontSize: "9pt", fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              {system.frei ? "Frei vereinbarter Mietzins · Indikation" : "Zulässiger Hauptmietzins (max.)"}
+            </div>
+            <div style={{ fontSize: "26pt", fontWeight: 800, letterSpacing: "-0.02em" }}>€ {fmt(monat)} <span style={{ fontSize: "11pt", fontWeight: 600, color: "#666" }}>/ Monat</span></div>
+          </div>
+          <div style={{ textAlign: "right", fontSize: "10pt" }}>
+            <div style={{ fontWeight: 700 }}>€ {fmt(calc.qm)} / m²</div>
+            <div style={{ color: "#666" }}>{system.name} · {system.norm}</div>
+          </div>
+        </div>
+        <div style={{ fontSize: "9pt", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#666", margin: "16pt 0 4pt" }}>Objekt & Einordnung</div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <tbody>
+            {[
+              ["Ausstattungskategorie (§15a MRG)", `Kategorie ${cat}${cat === "D" ? (dBrauchbar ? " (brauchbar)" : " (unbrauchbar)") : ""}`],
+              ["Nutzfläche", `${flaeche} m²`],
+              ["Bundesland", land + (system.richtwert ? ` · Richtwert € ${fmt(rw)}/m²` : "")],
+              ["Anwendungsbereich (§1 MRG)", `${anwendung.stufe} (${anwendung.norm})`],
+              ["Mietzinssystem (§16 MRG)", `${system.name} (${system.norm})`],
+              ["Mietvertrag", befristet ? "Befristet (− 25 % gem. §16 Abs 7 MRG)" : "Unbefristet"],
+              ...(system.richtwert && gutelage ? [["Lage", `Überdurchschnittlich · Grundkosten € ${fmt(grundkosten)}/m² (GKA ${land}: € ${fmt(GKA[land])})`]] : []),
+            ].map(([k, v], i) => (
+              <tr key={i}>
+                <td style={{ padding: "4pt 0", borderBottom: "0.5pt solid #DDD", color: "#555", width: "45%" }}>{k}</td>
+                <td style={{ padding: "4pt 0", borderBottom: "0.5pt solid #DDD", fontWeight: 600 }}>{v}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ fontSize: "9pt", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#666", margin: "16pt 0 4pt" }}>Rechenweg</div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <tbody>
+            {calc.rows.map(([l, v], i) => (
+              <tr key={i}>
+                <td style={{ padding: "4pt 0", borderBottom: "0.5pt solid #DDD", color: "#555" }}>{l}</td>
+                <td style={{ padding: "4pt 0", borderBottom: "0.5pt solid #DDD", fontWeight: 600, textAlign: "right", whiteSpace: "nowrap" }}>{v}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ padding: "6pt 0", fontWeight: 800 }}>× {flaeche} m² = Hauptmietzins pro Monat</td>
+              <td style={{ padding: "6pt 0", fontWeight: 800, textAlign: "right" }}>€ {fmt(monat)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style={{ marginTop: "18pt", paddingTop: "8pt", borderTop: "0.5pt solid #BBB", fontSize: "8pt", color: "#777", lineHeight: 1.5 }}>
+          Hauptmietzins ohne Betriebskosten und USt. Ausstattungsabschläge Kat. B/C sind Richtgrößen der Rechtsprechung; weitere Zu- und Abschläge (Stockwerk, Lift, Balkon, Gebäudezustand) sind einzelfallbezogen zu bewerten. Quellen: MRG (RIS, Gesetzesnummer 10002531) · Statistik Austria, Richtwerte und Kategoriebeträge ab 1.4.2026. Unverbindliche Orientierungshilfe – keine Rechtsberatung.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
