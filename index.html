@@ -70,7 +70,7 @@ const CAT_META = {
 };
 
 // ─── UI-Bausteine ────────────────────────────────────────────────────────────
-const card = { background: "#fff", borderRadius: 16, border: "1px solid #E8E8E4", marginBottom: 10 };
+const card = { background: "#fff", borderRadius: 16, border: "1px solid #E8E8E4", marginBottom: 8 };
 const label12 = { fontSize: 12, fontWeight: 600, display: "block", marginBottom: 5 };
 const numInput = {
   width: "100%", fontSize: 15, fontWeight: 600, padding: "10px 12px", borderRadius: 11,
@@ -91,7 +91,7 @@ function ToggleRow({ label, hint, on, onClick, border }) {
   return (
     <button className="row" onClick={onClick} style={{
       display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
-      padding: "8px 14px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left",
+      padding: "6px 14px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left",
       borderTop: border ? "1px solid #EFEFEB" : "none", transition: "background .15s",
     }}>
       <div>
@@ -108,7 +108,7 @@ function Pills({ options, value, onChange }) {
       {options.map(o => (
         <button key={o} onClick={() => onChange(o)} style={{
           border: "1px solid " + (value === o ? "#3A3A41" : "#DDDDD8"), background: value === o ? "#3A3A41" : "#fff",
-          color: value === o ? "#fff" : "#54545A", borderRadius: 999, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", transition: "all .15s",
+          color: value === o ? "#fff" : "#54545A", borderRadius: 999, padding: "5px 11px", fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all .15s",
         }}>{o}</button>
       ))}
     </div>
@@ -214,30 +214,37 @@ function App() {
         .row:hover { background: #F1F1ED; }
         input:focus, select:focus { border-color: #A6A6AD !important; }
 
-        .shell { max-width: 1240px; margin: 0 auto; padding: 12px 20px 20px; display: grid; grid-template-columns: 1fr; gap: 0; }
+        .shell { max-width: 1240px; margin: 0 auto; padding: 10px 20px 14px; display: grid; grid-template-columns: 1fr; gap: 0; }
         .side, .desktop-only { display: none; }
         .mobile-only { display: block; }
         .grid2, .critgrid, .erhgrid { display: block; }
 
         /* ── Desktop ≥ 1024px ── */
         @media (min-width: 1024px) {
-          .shell { grid-template-columns: minmax(0,1fr) 350px; gap: 22px; }
-          .side { display: block; }
           .desktop-only { display: block; }
           .mobile-only { display: none !important; }
-          .sticky { position: sticky; top: 62px; }
+          
           .critgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
           .critcol2 { border-left: 1px solid #EFEFEB; }
           .critcol2 .row:first-child { border-top: none !important; }
           .erhgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
           .erhgrid > div { margin-bottom: 0; }
         }
-        /* ── Breiter Desktop ≥ 1300px: Schritte nebeneinander, kein Scrollen ── */
-        @media (min-width: 1300px) {
-          .shell { max-width: 1380px; }
-          .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+        @media (min-width: 1024px) and (max-width: 1299px) {
+          .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
           .grid2 > .s1 { grid-row: span 2; }
           .grid2 > div { margin-bottom: 0; }
+        }
+        /* ── Breiter Desktop ≥ 1300px: Schritte 2–4 nebeneinander, kein Scrollen ── */
+        @media (min-width: 1300px) {
+          .shell { max-width: 1420px; }
+          .grid2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: start; }
+          .grid2 > div { margin-bottom: 0; }
+          .grid2 > .s1 { grid-row: span 2; }
+          .panel23 { grid-column: 2 / -1; align-self: stretch; }
+        }
+        @media (min-width: 1024px) and (max-width: 1299px) {
+          .panel23 { grid-column: 1 / -1; }
         }
 
         /* ── Mobil < 1024px ── */
@@ -312,7 +319,6 @@ function App() {
                     ))}
                   </div>
                 </div>
-                <p style={{ fontSize: 11.5, color: "#95959C", margin: 0, padding: "8px 14px", borderTop: "1px solid #EFEFEB" }}>{meta.desc}<Fn n={1} /><Fn n={5} /> Maßgeblich: Zustand bei Übergabe (§15a Abs 2 MRG).</p>
               </Step>
 
               {/* Schritte 2–4: Mietzins */}
@@ -360,7 +366,57 @@ function App() {
                     <ToggleRow border={system.richtwert || system.angemessen} label="Befristeter Mietvertrag" hint="− 25 % · §16 Abs 7" on={befristet} onClick={() => setBefristet(v => !v)} />
                   )}
                 </Step>
+              {/* ── Ergebnis-Panel in Spalten 2–3 (Desktop) ── */}
+              <div className="desktop-only panel23" style={{ background: "#3A3A41", color: "#fff", borderRadius: 16, padding: "14px 18px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                {/* Kategorie groß */}
+                <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                  <span style={{ width: 62, height: 62, flexShrink: 0, borderRadius: 16, background: meta.color, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 32, color: "#3A3A41", transition: "background .3s" }}>{cat}</span>
+                  <div>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, color: "#B8B8BE", textTransform: "uppercase", letterSpacing: "0.06em" }}>Ausstattungskategorie</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>Kategorie {cat}{cat === "D" ? (dBrauchbar ? " · brauchbar" : " · unbrauchbar") : ""}</div>
+                  </div>
+                </div>
+                <div style={{ width: 1, alignSelf: "stretch", background: "#54545C" }} />
+                {/* Ergebnis */}
+                <div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: "#B8B8BE", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {system.frei ? "Frei vereinbar · Indikation" : "Zulässiger Hauptmietzins"}
+                  </div>
+                  <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, whiteSpace: "nowrap" }}>€ {fmt(monat)} <span style={{ fontSize: 13, fontWeight: 600, color: "#B8B8BE" }}>/ Monat</span></div>
+                  <div style={{ fontSize: 12, color: "#B8B8BE" }}>€ {fmt(calc.qm)}/m² · {system.name}</div>
+                </div>
+                <div style={{ width: 1, alignSelf: "stretch", background: "#54545C" }} />
+                {/* Eingaben */}
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+                  <div style={{ width: 110 }}>
+                    <label style={{ ...label12, color: "#B8B8BE" }}>Nutzfläche (m²)</label>
+                    <input className="darknum" type="number" inputMode="decimal" min="10" max="500" value={flaeche} style={darkInput} onChange={e => setFlaeche(Math.max(0, +e.target.value || 0))} />
+                  </div>
+                  <div style={{ width: 170 }}>
+                    <label style={{ ...label12, color: "#B8B8BE" }}>Bundesland</label>
+                    <select value={land} onChange={e => setLand(e.target.value)} style={{ ...darkInput, appearance: "none" }}>
+                      {Object.keys(RICHTWERTE).map(l => <option key={l} style={{ color: "#000" }}>{l}</option>)}
+                    </select>
+                    <div style={{ fontSize: 10.5, color: "#A6A6AD", marginTop: 4, whiteSpace: "nowrap" }}>Richtwert € {fmt(rw)}/m² · GKA € {fmt(GKA[land])}</div>
+                  </div>
+                </div>
+                <div style={{ width: 1, alignSelf: "stretch", background: "#54545C" }} />
+                {/* Einordnung */}
+                <div style={{ fontSize: 12, display: "grid", rowGap: 4 }}>
+                  {[["Anwendungsbereich", anwendung.stufe], ["System", system.name], ["Befristet", befristet ? "Ja (− 25 %)" : "Nein"]].map(([k, v], i) => (
+                    <div key={i} style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
+                      <span style={{ color: "#B8B8BE" }}>{k}</span><span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* PDF */}
+                <button onClick={() => window.print()} style={{
+                  marginLeft: "auto", border: "none", cursor: "pointer", borderRadius: 11,
+                  padding: "13px 22px", fontSize: 13.5, fontWeight: 700, background: "#fff", color: "#3A3A41", whiteSpace: "nowrap",
+                }}>Als PDF exportieren</button>
               </div>
+              </div>
+
             </>)}
 
             {tab === "erhoehung" && (
@@ -382,7 +438,7 @@ function App() {
               </div>
             )}
 
-            <details style={{ marginTop: 22 }}>
+            <details style={{ marginTop: 10 }}>
               <summary style={{ fontSize: 12, fontWeight: 700, color: "#95959C", textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer" }}>Quellen & Hinweise</summary>
               <ol style={{ margin: "10px 0 0", padding: "0 0 0 18px" }}>
                 {FOOTNOTES.map(([label, url], i) => (
@@ -396,48 +452,6 @@ function App() {
           </div>
 
           {/* ── Sticky-Sidebar (Desktop): Ergebnis + Eingaben ── */}
-          <aside className="side">
-            <div className="sticky">
-              <div style={{ background: "#3A3A41", color: "#fff", borderRadius: 16, padding: 18 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "#B8B8BE", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {system.frei ? "Frei vereinbar · Indikation" : "Zulässiger Hauptmietzins"}
-                </div>
-                <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-0.03em", margin: "2px 0 0" }}>€ {fmt(monat)}</div>
-                <div style={{ fontSize: 12.5, color: "#B8B8BE", marginBottom: 14 }}>pro Monat · € {fmt(calc.qm)}/m²</div>
-
-                {/* Eingaben direkt in der Zusammenfassung */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 6 }}>
-                  <div>
-                    <label style={{ ...label12, color: "#B8B8BE" }}>Nutzfläche (m²)</label>
-                    <input className="darknum" type="number" inputMode="decimal" min="10" max="500" value={flaeche} style={darkInput} onChange={e => setFlaeche(Math.max(0, +e.target.value || 0))} />
-                  </div>
-                  <div>
-                    <label style={{ ...label12, color: "#B8B8BE" }}>Bundesland</label>
-                    <select value={land} onChange={e => setLand(e.target.value)} style={{ ...darkInput, appearance: "none" }}>
-                      {Object.keys(RICHTWERTE).map(l => <option key={l} style={{ color: "#000" }}>{l}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div style={{ fontSize: 11.5, color: "#A6A6AD", marginBottom: 10 }}>Richtwert {land}: € {fmt(rw)}/m² · GKA € {fmt(GKA[land])}</div>
-
-                {[
-                  ["Kategorie", `${cat}${cat === "D" ? (dBrauchbar ? " (brauchbar)" : " (unbr.)") : ""}`],
-                  ["Anwendungsbereich", anwendung.stufe],
-                  ["System", system.name],
-                  ["Befristet", befristet ? "Ja (− 25 %)" : "Nein"],
-                ].map(([k, v], i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderTop: "1px solid #54545C", fontSize: 12.5 }}>
-                    <span style={{ color: "#B8B8BE" }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span>
-                  </div>
-                ))}
-
-                <button onClick={() => window.print()} style={{
-                  marginTop: 14, width: "100%", border: "none", cursor: "pointer", borderRadius: 11,
-                  padding: "12px 0", fontSize: 13.5, fontWeight: 700, background: "#fff", color: "#3A3A41",
-                }}>Als PDF exportieren</button>
-                              </div>
-            </div>
-          </aside>
         </div>
 
         {/* ── Mobil: fixe Ergebnisleiste unten ── */}
